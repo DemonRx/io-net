@@ -3,20 +3,10 @@
 set -euxo pipefail
 
 export DEBIAN_FRONTEND=noninteractive
-sudo dpkg --set-selections <<< "cloud-init hold" || true
+sudo dpkg --set-selections <<< "cloud-init install" || true
 
-# Detect if an Nvidia GPU is present
-NVIDIA_PRESENT=$(lspci | grep -i nvidia || true)
-
-# Only proceed with Nvidia-specific steps if an Nvidia device is detected
-if [[ -z "$NVIDIA_PRESENT" ]]; then
-    echo "No NVIDIA device detected on this system."
-else
-# Check if nvidia-smi is available and working
-    if command -v nvidia-smi &>/dev/null && nvidia-smi &>/dev/null; then
-        echo "CUDA drivers already installed as nvidia-smi works."
-    else
-        # Detect OS
+# Set Gloabal Variables
+    # Detect OS
         OS="$(uname)"
         case $OS in
             "Linux")
@@ -29,7 +19,21 @@ else
                     echo "Your Linux distribution is not supported."
                     exit 1
                 fi
-                
+                ;;
+        esac
+
+# Detect if an Nvidia GPU is present
+NVIDIA_PRESENT=$(lspci | grep -i nvidia || true)
+
+# Only proceed with Nvidia-specific steps if an Nvidia device is detected
+if [[ -z "$NVIDIA_PRESENT" ]]; then
+    echo "No NVIDIA device detected on this system."
+else
+# Check if nvidia-smi is available and working
+    if command -v nvidia-smi &>/dev/null && nvidia-smi &>/dev/null; then
+        echo "CUDA drivers already installed as nvidia-smi works."
+    else
+
                 # Depending on Distro
                 case $DISTRO in
                     "ubuntu")
@@ -150,7 +154,7 @@ else
                                 sudo apt install nvidia-cuda-dev nvidia-cuda-toolkit
                                 sudo apt update
                                 ;;
-                            
+
                             *)
                                 echo "This version of Debian is not supported in this script."
                                 exit 1
@@ -162,9 +166,7 @@ else
                         echo "Your Linux distribution is not supported."
                         exit 1
                         ;;
-                esac
-                ;;
-            
+
             "Windows_NT")
                 # For Windows Subsystem for Linux (WSL) with Ubuntu
                 if grep -q Microsoft /proc/version; then
@@ -208,20 +210,44 @@ docker-compose --version
 
 
 if [[ ! -z "$NVIDIA_PRESENT" ]]; then
-    if sudo docker run --gpus all nvidia/cuda:11.0.3-base-ubuntu18.04 nvidia-smi &>/dev/null; then
+    if sudo docker run --gpus all nvidia/cuda:12.0.0-base-ubuntu$VERSION_ID nvidia-smi &>/dev/null; then
         echo "nvidia-docker is enabled and working. Exiting script."
     else
         echo "nvidia-docker does not seem to be enabled. Proceeding with installations..."
-        distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
-        curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | sudo apt-key add
-        curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list | sudo tee /etc/apt/sources.list.d/nvidia-docker.list
+        curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.g \
+		&& curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
+		sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+		sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
         sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit
         sudo systemctl restart docker 
-        sudo docker run --gpus all nvidia/cuda:11.0.3-base-ubuntu18.04 nvidia-smi
+
+# Install/Test Docker NVIDIA Image for Active Distro
+ 	case $DISTRO in
+	    "ubuntu")
+            case $VERSION in
+                "22.04")
+			        sudo docker run --gpus all nvidia/cuda:12.0.0-base-ubuntu22.04 nvidia-smi
+			        echo "Installation successful !"
+			        ;;
+            esac
+		    ;;
+		        "20.04")
+			        sudo docker run --gpus all nvidia/cuda:12.0.0-base-ubuntu20.04 nvidia-smi
+			        echo "Installation successful !"
+			        ;;
+
+                "18.04")
+			        sudo docker run --gpus all nvidia/cuda:12.0.0-base-ubuntu18.04 nvidia-smi
+			        echo "Installation successful !"
+			        ;;
+		        *)
+			        echo "Your OS is not supported"
+			        exit 1
+			        ;;
+        esac
     fi
 fi
 
-sudo dpkg --set-selections <<< "cloud-init install" || true
 sudo groupadd docker || true
 sudo usermod -aG docker $USER || true
 newgrp docker || true
