@@ -30,7 +30,7 @@ if [[ -z "$NVIDIA_PRESENT" ]]; then
     echo "No NVIDIA device detected on this system."
 else
 # Check if nvidia-smi is available and working
-    if command -v nvidia-smi &>/dev/null && nvidia-smi &>/dev/null; then
+    if command -v nvidia-smi &>/dev/null; then
         echo "CUDA drivers already installed as nvidia-smi works."
     else
 
@@ -44,7 +44,7 @@ else
                                 sudo -- sh -c 'apt-get update; apt-get upgrade -y; apt-get autoremove -y; apt-get autoclean -y'
                                 sudo apt install linux-headers-$(uname -r) -y
                                 sudo apt del 7fa2af80
-                                sudo apt install build-essential cmake unzip pkg-config software-properties-common ubuntu-drivers-common -y
+                                sudo apt install build-essential cmake gpg unzip pkg-config software-properties-common ubuntu-drivers-common -y
                                 sudo apt install libxmu-dev libxi-dev libglu1-mesa libglu1-mesa-dev -y || true
                                 sudo apt install libjpeg-dev libpng-dev libtiff-dev -y || true
                                 sudo apt install libavcodec-dev libavformat-dev libswscale-dev libv4l-dev -y || true
@@ -80,7 +80,7 @@ else
                                 sudo -- sh -c 'apt-get update; apt-get upgrade -y; apt-get autoremove -y; apt-get autoclean -y'
                                 sudo apt install linux-headers-$(uname -r) -y
                                 sudo apt-key del 7fa2af80
-                                sudo apt install build-essential cmake unzip pkg-config software-properties-common ubuntu-drivers-common -y
+                                sudo apt install build-essential cmake gpg unzip pkg-config software-properties-common ubuntu-drivers-common -y
                                 sudo apt install libxmu-dev libxi-dev libglu1-mesa libglu1-mesa-dev -y
                                 sudo apt install libjpeg-dev libpng-dev libtiff-dev -y 
                                 sudo apt install libavcodec-dev libavformat-dev libswscale-dev libv4l-dev -y 
@@ -115,7 +115,7 @@ else
                                 sudo -- sh -c 'apt-get update; apt-get upgrade -y; apt-get autoremove -y; apt-get autoclean -y'
                                 sudo apt-get install linux-headers-$(uname -r) -y
                                 sudo apt-key del 7fa2af80
-                                sudo apt install build-essential cmake unzip pkg-config software-properties-common ubuntu-drivers-common alsa-utils -y
+                                sudo apt install build-essential cmake gpg unzip pkg-config software-properties-common ubuntu-drivers-common alsa-utils -y
                                 sudo apt install libxmu-dev libxi-dev libglu1-mesa libglu1-mesa-dev -y || true
                                 sudo apt install libjpeg-dev libpng-dev libtiff-dev -y || true
                                 sudo apt install libavcodec-dev libavformat-dev libswscale-dev libv4l-dev -y || true
@@ -185,7 +185,8 @@ else
                 exit 1
                 ;;
         esac
-
+	echo "System will now reboot !!! Please re-run this script after restart to complete installation !"
+ 	sleep 5s
         sudo reboot
     fi
 fi
@@ -199,23 +200,23 @@ if command -v docker &>/dev/null; then
     echo "Docker is already installed."
 else
     echo "Docker is not installed. Proceeding with installations..."
-# Install Docker-ce
+# Install Docker-ce keyring
 sudo apt update
 sudo apt install ca-certificates curl gnupg
 sudo install -m 0755 -d /etc/apt/keyrings
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
 sudo chmod a+r /etc/apt/keyrings/docker.gpg
 
-# Add Docker-ce repository to Apt sources:
+# Add Docker-ce repository to Apt sources and install
 echo \
   "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/li>
   $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
   sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 sudo apt update
 sudo apt install docker-ce
-    # Optionally add installation steps for Docker and nvidia-docker if you have them
 fi
 
+# Check if docker-compose is installed
 if command -v docker-compose &>/dev/null; then
     echo "Docker-compoose is already installed."
 else
@@ -226,6 +227,7 @@ sudo apt install docker-compose-plugin
 sudo ln -sv /usr/libexec/docker/cli-plugins/docker-compose /usr/bin/docker-compose
 docker-compose --version
 
+# Test / Install nvidia-docker
 if [[ ! -z "$NVIDIA_PRESENT" ]]; then
     if sudo docker run --gpus all nvidia/cuda:12.0.0-base-ubuntu$VERSION_ID nvidia-smi &>/dev/null; then
         echo "nvidia-docker is enabled and working. Exiting script."
@@ -236,7 +238,10 @@ if [[ ! -z "$NVIDIA_PRESENT" ]]; then
 		&& curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
 		sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
 		sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
-  	sudo nvidia-ctk runtime configure --runtime=docker #The nvidia-ctk command modifies the /etc/docker/daemon.json file on the host. The file is updated so that Docker can use the NVIDIA Container Runtime.
+  	
+   	# The nvidia-ctk command modifies the /etc/docker/daemon.json file on the host. 
+    	# The file is updated so that Docker can use the NVIDIA Container Runtime.
+      	sudo nvidia-ctk runtime configure --runtime=docker 
         sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit
         sudo systemctl restart docker 
 
@@ -244,18 +249,18 @@ if [[ ! -z "$NVIDIA_PRESENT" ]]; then
  	case $DISTRO in
 	    "ubuntu")
             case $VERSION in
-                "22.04")
+                	"22.04")
 			        sudo docker run --gpus all nvidia/cuda:12.0.0-base-ubuntu22.04 nvidia-smi
 			        echo "Installation successful !"
 			        ;;
             esac
-		    ;;
+	    ;;
 		        "20.04")
 			        sudo docker run --gpus all nvidia/cuda:12.0.0-base-ubuntu20.04 nvidia-smi
 			        echo "Installation successful !"
 			        ;;
 
-                "18.04")
+                	"18.04")
 			        sudo docker run --gpus all nvidia/cuda:12.0.0-base-ubuntu18.04 nvidia-smi
 			        echo "Installation successful !"
 			        ;;
