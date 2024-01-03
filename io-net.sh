@@ -223,6 +223,7 @@ else
 
 # Install docker-compose subcommand
 sudo apt install docker-compose-plugin
+sudo ln -sv /usr/libexec/docker/cli-plugins/docker-compose /usr/bin/docker-compose
 docker-compose --version
 
 if [[ ! -z "$NVIDIA_PRESENT" ]]; then
